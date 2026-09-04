@@ -1,0 +1,519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Wanderbricks NL-to-SQL Agent — Implementation Plan</title>
+<style>
+  :root{
+    --ink:#0f1b2b;
+    --paper:#eef1f3;
+    --line:#2c5f6f;
+    --line-soft:#9fb8bf;
+    --accent:#c96a3f;
+    --accent-soft:#f0d9c9;
+    --panel:#ffffff;
+    --mono: "IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+    --serif: "Source Serif Pro","Iowan Old Style",Georgia,serif;
+    --sans: "IBM Plex Sans","Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:var(--paper);
+    color:var(--ink);
+    font-family:var(--sans);
+    line-height:1.55;
+  }
+  .sheet{
+    max-width:920px;
+    margin:0 auto;
+    padding:64px 40px 120px;
+  }
+  header.title-block{
+    border-bottom:3px solid var(--ink);
+    padding-bottom:28px;
+    margin-bottom:44px;
+  }
+  .kicker{
+    font-family:var(--mono);
+    font-size:12.5px;
+    letter-spacing:0.02em;
+    color:var(--line);
+    margin-bottom:14px;
+  }
+  h1{
+    font-family:var(--serif);
+    font-size:40px;
+    font-weight:600;
+    margin:0 0 10px;
+    letter-spacing:-0.01em;
+  }
+  .subtitle{
+    font-size:16.5px;
+    color:#3b4a56;
+    max-width:640px;
+  }
+  h2{
+    font-family:var(--serif);
+    font-size:25px;
+    font-weight:600;
+    margin:0 0 6px;
+    display:flex;
+    align-items:baseline;
+    gap:12px;
+  }
+  h2 .num{
+    font-family:var(--mono);
+    font-size:15px;
+    color:var(--accent);
+    font-weight:600;
+  }
+  section{margin:56px 0;}
+  section > p, section > ul, section > ol{
+    max-width:74ch;
+  }
+  p{margin:14px 0;}
+  a{color:var(--line); }
+  .lede{
+    font-size:15.5px;
+    color:#2b3a44;
+    border-left:3px solid var(--line-soft);
+    padding-left:18px;
+    margin:18px 0 26px;
+  }
+  code{
+    font-family:var(--mono);
+    background:#e3e8ea;
+    padding:1px 5px;
+    border-radius:3px;
+    font-size:0.9em;
+  }
+  pre{
+    font-family:var(--mono);
+    background:var(--ink);
+    color:#dbe6ea;
+    padding:16px 18px;
+    border-radius:6px;
+    font-size:13px;
+    overflow-x:auto;
+    line-height:1.5;
+  }
+  .diagram-frame{
+    background:var(--panel);
+    border:1px solid #c9d2d6;
+    border-radius:8px;
+    padding:22px 20px 14px;
+    margin:22px 0;
+  }
+  .diagram-caption{
+    font-family:var(--mono);
+    font-size:12px;
+    color:#5a6d76;
+    text-align:center;
+    margin-top:6px;
+  }
+  table{
+    width:100%;
+    border-collapse:collapse;
+    margin:18px 0 4px;
+    font-size:14.5px;
+  }
+  th, td{
+    text-align:left;
+    padding:9px 12px;
+    border-bottom:1px solid #d6dde0;
+    vertical-align:top;
+  }
+  th{
+    font-family:var(--mono);
+    font-size:12px;
+    letter-spacing:0.02em;
+    color:#4a5b64;
+    border-bottom:2px solid var(--ink);
+  }
+  tr:last-child td{border-bottom:1px solid #d6dde0;}
+  ul.build-order{
+    list-style:none;
+    margin:22px 0;
+    padding:0;
+    counter-reset:step;
+  }
+  ul.build-order li{
+    counter-increment:step;
+    position:relative;
+    padding:14px 0 14px 46px;
+    border-bottom:1px solid #dde3e5;
+  }
+  ul.build-order li:last-child{border-bottom:none;}
+  ul.build-order li::before{
+    content:counter(step);
+    position:absolute;
+    left:0;
+    top:14px;
+    width:28px;
+    height:28px;
+    border-radius:50%;
+    border:1.5px solid var(--line);
+    color:var(--line);
+    font-family:var(--mono);
+    font-size:13px;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+  }
+  ul.build-order strong{color:var(--ink);}
+  .checklist{
+    list-style:none;
+    margin:18px 0;
+    padding:0;
+  }
+  .checklist li{
+    padding:8px 0 8px 30px;
+    position:relative;
+    border-bottom:1px dashed #d6dde0;
+    font-size:14.5px;
+  }
+  .checklist li::before{
+    content:"";
+    position:absolute;
+    left:0; top:11px;
+    width:14px; height:14px;
+    border:1.5px solid var(--accent);
+    border-radius:3px;
+  }
+  .callout{
+    background:var(--accent-soft);
+    border:1px solid #dfb495;
+    border-radius:6px;
+    padding:16px 18px;
+    font-size:14.5px;
+    margin:20px 0;
+  }
+  .callout .label{
+    font-family:var(--mono);
+    font-size:11.5px;
+    letter-spacing:0.03em;
+    color:#8a4a24;
+    margin-bottom:6px;
+  }
+  .tag{
+    display:inline-block;
+    font-family:var(--mono);
+    font-size:11px;
+    background:#dfe9ec;
+    color:#2c5f6f;
+    padding:2px 8px;
+    border-radius:10px;
+    margin-right:6px;
+  }
+  footer{
+    margin-top:70px;
+    padding-top:24px;
+    border-top:1px solid #cdd6d9;
+    font-family:var(--mono);
+    font-size:12px;
+    color:#748088;
+  }
+  @media (max-width:640px){
+    .sheet{padding:40px 20px 90px;}
+    h1{font-size:30px;}
+  }
+</style>
+</head>
+<body>
+<div class="sheet">
+
+  <header class="title-block">
+    <div class="kicker">IMPLEMENTATION PLAN — READ BEFORE HANDING TO A CODING AGENT</div>
+    <h1>Wanderbricks NL-to-SQL Agent</h1>
+    <div class="subtitle">A chat interface, backed by a FastAPI agent, that turns questions about the Wanderbricks Delta Lake tables into SQL and answers them — built as a first hands-on project in retrieval, tool use, and Databricks integration.</div>
+  </header>
+
+  <section id="s0">
+    <h2><span class="num">00</span>What you're actually building</h2>
+    <p>A chatbot that turns natural-language questions into SQL, runs that SQL against Databricks Delta tables, and answers using the results. This pattern is <strong>NL-to-SQL with schema-aware RAG.</strong> It is not RAG over documents — you are not embedding rows of data. You are embedding <em>metadata</em> (table and column descriptions, relationships, sample values) so the LLM knows what it's allowed to query and how the tables relate, before it ever writes SQL.</p>
+    <div class="lede">Three concepts this project is designed to teach, in order: (1) building and querying a small vector index — the "retrieval" half of RAG; (2) safely turning free text into SQL and executing it against a real warehouse — tool use, not just chat; (3) wiring a stateless FastAPI backend to a React chat frontend.</div>
+    <p>Keep every piece boring and inspectable at first. Swap in production-grade tools later — see Section 08.</p>
+  </section>
+
+  <section id="s1">
+    <h2><span class="num">01</span>High-level architecture</h2>
+    <p>Two pipelines, deliberately separate: an <strong>offline ingestion pipeline</strong> that crawls Unity Catalog metadata once and builds a searchable index, and an <strong>online query pipeline</strong> that runs per chat message.</p>
+
+    <div class="diagram-frame">
+      <svg viewBox="0 0 860 560" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Mono, monospace">
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#2c5f6f"/>
+          </marker>
+          <marker id="arrowSoft" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#9fb8bf"/>
+          </marker>
+        </defs>
+
+        <!-- React box -->
+        <rect x="30" y="40" width="180" height="70" rx="6" fill="#ffffff" stroke="#0f1b2b" stroke-width="1.6"/>
+        <text x="120" y="70" text-anchor="middle" font-size="14" fill="#0f1b2b" font-weight="600">React Chat UI</text>
+        <text x="120" y="90" text-anchor="middle" font-size="11" fill="#5a6d76">browser</text>
+
+        <!-- arrow to FastAPI -->
+        <line x1="210" y1="75" x2="330" y2="75" stroke="#2c5f6f" stroke-width="1.6" marker-end="url(#arrow)"/>
+        <text x="270" y="65" text-anchor="middle" font-size="10.5" fill="#2c5f6f">POST /chat</text>
+
+        <!-- FastAPI box -->
+        <rect x="330" y="30" width="200" height="90" rx="6" fill="#f0d9c9" stroke="#c96a3f" stroke-width="1.8"/>
+        <text x="430" y="62" text-anchor="middle" font-size="14" fill="#0f1b2b" font-weight="600">FastAPI Backend</text>
+        <text x="430" y="80" text-anchor="middle" font-size="11" fill="#5a4030">the agent loop</text>
+        <text x="430" y="96" text-anchor="middle" font-size="10" fill="#5a4030">retrieve → generate → run → summarize</text>
+
+        <!-- return arrow -->
+        <path d="M330,105 C270,140 270,140 210,105" fill="none" stroke="#9fb8bf" stroke-width="1.4" marker-end="url(#arrowSoft)"/>
+        <text x="270" y="150" text-anchor="middle" font-size="10" fill="#5a6d76">answer + SQL used</text>
+
+        <!-- three downstream boxes -->
+        <rect x="60" y="220" width="200" height="100" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.6"/>
+        <text x="160" y="250" text-anchor="middle" font-size="13" fill="#0f1b2b" font-weight="600">Metadata Index</text>
+        <text x="160" y="268" text-anchor="middle" font-size="10.5" fill="#3b4a56">vector store of table /</text>
+        <text x="160" y="282" text-anchor="middle" font-size="10.5" fill="#3b4a56">column descriptions</text>
+        <text x="160" y="302" text-anchor="middle" font-size="9.5" fill="#6b7a82">e.g. Chroma, local</text>
+
+        <rect x="330" y="220" width="200" height="100" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.6"/>
+        <text x="430" y="250" text-anchor="middle" font-size="13" fill="#0f1b2b" font-weight="600">External LLM</text>
+        <text x="430" y="268" text-anchor="middle" font-size="10.5" fill="#3b4a56">1) question → SQL</text>
+        <text x="430" y="282" text-anchor="middle" font-size="10.5" fill="#3b4a56">2) rows → NL answer</text>
+        <text x="430" y="302" text-anchor="middle" font-size="9.5" fill="#6b7a82">OpenAI / Anthropic / etc.</text>
+
+        <rect x="600" y="220" width="230" height="100" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.6"/>
+        <text x="715" y="250" text-anchor="middle" font-size="13" fill="#0f1b2b" font-weight="600">Databricks SQL API</text>
+        <text x="715" y="268" text-anchor="middle" font-size="10.5" fill="#3b4a56">Statement Execution API</text>
+        <text x="715" y="282" text-anchor="middle" font-size="10.5" fill="#3b4a56">or SQL Connector</text>
+        <text x="715" y="302" text-anchor="middle" font-size="9.5" fill="#6b7a82">runs SQL on Unity Catalog</text>
+
+        <!-- connectors FastAPI -> three -->
+        <path d="M400,120 C320,160 200,180 160,220" fill="none" stroke="#2c5f6f" stroke-width="1.4" marker-end="url(#arrow)"/>
+        <line x1="430" y1="120" x2="430" y2="220" stroke="#2c5f6f" stroke-width="1.4" marker-end="url(#arrow)"/>
+        <path d="M460,120 C560,160 660,180 715,220" fill="none" stroke="#2c5f6f" stroke-width="1.4" marker-end="url(#arrow)"/>
+
+        <!-- ingestion pipeline box -->
+        <rect x="60" y="400" width="200" height="110" rx="6" fill="#ffffff" stroke="#9fb8bf" stroke-width="1.6" stroke-dasharray="4 3"/>
+        <text x="160" y="428" text-anchor="middle" font-size="13" fill="#0f1b2b" font-weight="600">Offline Ingestion</text>
+        <text x="160" y="428" text-anchor="middle" font-size="13" fill="#0f1b2b" font-weight="600" dy="16">Pipeline</text>
+        <text x="160" y="464" text-anchor="middle" font-size="10.5" fill="#3b4a56">crawls Unity Catalog</text>
+        <text x="160" y="478" text-anchor="middle" font-size="10.5" fill="#3b4a56">writes descriptions</text>
+        <text x="160" y="492" text-anchor="middle" font-size="9.5" fill="#6b7a82">run once / on schema change</text>
+
+        <line x1="160" y1="400" x2="160" y2="320" stroke="#9fb8bf" stroke-width="1.4" stroke-dasharray="4 3" marker-end="url(#arrowSoft)"/>
+
+        <line x1="260" y1="455" x2="600" y2="270" stroke="#9fb8bf" stroke-width="1.2" stroke-dasharray="4 3" marker-end="url(#arrowSoft)"/>
+        <text x="440" y="410" text-anchor="middle" font-size="9.5" fill="#748088">reads schema via DESCRIBE / sampling</text>
+      </svg>
+      <div class="diagram-caption">FIG. 1 — request/response loop (solid) vs. one-time ingestion (dashed)</div>
+    </div>
+  </section>
+
+  <section id="s2">
+    <h2><span class="num">02</span>Your dataset, read as a graph</h2>
+    <p>This matters because it is exactly what your metadata index needs to capture — not just column names, but how the tables join.</p>
+
+    <div class="diagram-frame">
+      <svg viewBox="0 0 900 480" xmlns="http://www.w3.org/2000/svg" font-family="IBM Plex Mono, monospace">
+        <defs>
+          <marker id="arrow2" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0,0 L10,5 L0,10 z" fill="#c96a3f"/>
+          </marker>
+        </defs>
+        <!-- root -->
+        <rect x="360" y="20" width="180" height="56" rx="6" fill="#0f1b2b"/>
+        <text x="450" y="44" text-anchor="middle" font-size="13" fill="#eef1f3" font-weight="600">users</text>
+        <text x="450" y="61" text-anchor="middle" font-size="10" fill="#a9b8c0">user_id</text>
+
+        <!-- level 2 -->
+        <g font-size="12" fill="#0f1b2b">
+          <rect x="20" y="140" width="150" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="95" y="164" text-anchor="middle" font-weight="600">clickstream</text>
+          <text x="95" y="181" text-anchor="middle" font-size="9.5" fill="#5a6d76">user_id</text>
+
+          <rect x="195" y="140" width="150" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="270" y="160" text-anchor="middle" font-weight="600">bookings</text>
+          <text x="270" y="176" text-anchor="middle" font-size="9" fill="#5a6d76">user_id, booking_id</text>
+
+          <rect x="370" y="140" width="150" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="445" y="160" text-anchor="middle" font-weight="600">reviews</text>
+          <text x="445" y="176" text-anchor="middle" font-size="9" fill="#5a6d76">user_id, property_id</text>
+
+          <rect x="545" y="140" width="200" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="645" y="160" text-anchor="middle" font-weight="600" font-size="11.5">customer_support_logs</text>
+          <text x="645" y="176" text-anchor="middle" font-size="9" fill="#5a6d76">user_id</text>
+        </g>
+
+        <line x1="450" y1="76" x2="95" y2="140" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <line x1="450" y1="76" x2="270" y2="140" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <line x1="450" y1="76" x2="445" y2="140" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <line x1="450" y1="76" x2="645" y2="140" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+
+        <!-- level 3, children of bookings -->
+        <g font-size="12" fill="#0f1b2b">
+          <rect x="60" y="260" width="150" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="135" y="280" text-anchor="middle" font-weight="600">payments</text>
+          <text x="135" y="296" text-anchor="middle" font-size="9" fill="#5a6d76">booking_id</text>
+
+          <rect x="235" y="260" width="150" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="310" y="280" text-anchor="middle" font-weight="600">properties</text>
+          <text x="310" y="296" text-anchor="middle" font-size="9" fill="#5a6d76">property_id</text>
+
+          <rect x="410" y="260" width="170" height="56" rx="6" fill="#ffffff" stroke="#2c5f6f" stroke-width="1.5"/>
+          <text x="495" y="280" text-anchor="middle" font-weight="600" font-size="11.5">booking_updates</text>
+          <text x="495" y="296" text-anchor="middle" font-size="9" fill="#5a6d76">booking_id</text>
+        </g>
+        <line x1="270" y1="196" x2="135" y2="260" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <line x1="270" y1="196" x2="310" y2="260" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+        <line x1="270" y1="196" x2="495" y2="260" stroke="#2c5f6f" stroke-width="1.3" marker-end="url(#arrow2)"/>
+
+        <!-- level 4, children of properties -->
+        <g font-size="12" fill="#0f1b2b">
+          <rect x="180" y="380" width="150" height="56" rx="6" fill="#ffffff" stroke="#c96a3f" stroke-width="1.8" stroke-dasharray="3 3"/>
+          <text x="255" y="405" text-anchor="middle" font-weight="600">destinations</text>
+          <text x="255" y="421" text-anchor="middle" font-size="9" fill="#8a4a24">fk unconfirmed</text>
+
+          <rect x="355" y="380" width="150" height="56" rx="6" fill="#ffffff" stroke="#c96a3f" stroke-width="1.8" stroke-dasharray="3 3"/>
+          <text x="430" y="405" text-anchor="middle" font-weight="600">hosts</text>
+          <text x="430" y="421" text-anchor="middle" font-size="9" fill="#8a4a24">fk unconfirmed</text>
+        </g>
+        <line x1="310" y1="316" x2="255" y2="380" stroke="#c96a3f" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#arrow2)"/>
+        <line x1="310" y1="316" x2="430" y2="380" stroke="#c96a3f" stroke-width="1.4" stroke-dasharray="3 3" marker-end="url(#arrow2)"/>
+      </svg>
+      <div class="diagram-caption">FIG. 2 — table relationships, redrawn from your Wanderbricks diagram. Dashed = key not labeled in the source diagram, confirm before writing schema descriptions.</div>
+    </div>
+
+    <table>
+      <tr><th>Table</th><th>Key columns</th><th>Joins to</th></tr>
+      <tr><td>users</td><td><code>user_id</code></td><td>— (root)</td></tr>
+      <tr><td>clickstream</td><td><code>user_id</code></td><td>users</td></tr>
+      <tr><td>bookings</td><td><code>user_id</code>, <code>booking_id</code></td><td>users; parent of payments, properties, booking_updates</td></tr>
+      <tr><td>reviews</td><td><code>user_id</code>, <code>property_id</code></td><td>users, properties</td></tr>
+      <tr><td>customer_support_logs</td><td><code>user_id</code></td><td>users</td></tr>
+      <tr><td>payments</td><td><code>booking_id</code></td><td>bookings</td></tr>
+      <tr><td>properties</td><td><code>property_id</code></td><td>bookings; parent of destinations, hosts</td></tr>
+      <tr><td>booking_updates</td><td><code>booking_id</code></td><td>bookings</td></tr>
+      <tr><td>destinations</td><td>fk in properties</td><td>properties</td></tr>
+      <tr><td>hosts</td><td>fk in properties</td><td>properties</td></tr>
+    </table>
+
+    <div class="callout">
+      <div class="label">ACTION ITEM — DO THIS BEFORE WRITING CODE</div>
+      Run <code>DESCRIBE TABLE EXTENDED</code> (or check the Unity Catalog UI) on <code>properties</code>, <code>bookings</code>, <code>destinations</code>, and <code>hosts</code> to confirm the real join keys — the source diagram implies <code>properties</code> joins to <code>destinations</code> and <code>hosts</code> but doesn't label the FK columns. The LLM will only ever join on columns you tell it exist.
+    </div>
+  </section>
+
+  <section id="s3">
+    <h2><span class="num">03</span>Component-by-component plan</h2>
+
+    <h3>3.1 &nbsp;Databricks access layer</h3>
+    <p>Create a Databricks SQL Warehouse (serverless is fine for a demo) with access to the <code>wanderbricks</code> catalog/schema. Create a personal access token, or — better for anything beyond your own laptop — a service principal with <code>SELECT</code> on the wanderbricks schema only, nothing else. This is your first real production-readiness decision: the agent's DB credential should be as narrowly scoped as possible, because the LLM is going to be writing arbitrary SQL with it.</p>
+    <p>Two ways to talk to Databricks at runtime — pick one:</p>
+    <table>
+      <tr><th>Option</th><th>Notes</th></tr>
+      <tr><td><code>databricks-sql-connector</code></td><td>Simplest — feels like any DB-API driver. Fastest way to get moving.</td></tr>
+      <tr><td>Statement Execution REST API</td><td>What you called "SQL API endpoints." More architecturally honest for a service — stateless HTTP, poll for statement completion, parse JSON result chunks. Recommended once the connector version works, for the learning value.</td></tr>
+    </table>
+
+    <h3>3.2 &nbsp;Ingestion pipeline <span class="tag">build this first</span></h3>
+    <p>Produces one document per table describing: name and purpose, each column's name/type/description, known join keys, and 2–3 example rows or distinct categorical values (helps the LLM write correct <code>WHERE</code> clauses instead of guessing, e.g. knowing <code>status</code> is <code>'confirmed'|'cancelled'|'pending'</code>).</p>
+    <ol>
+      <li>Script that runs <code>DESCRIBE TABLE EXTENDED &lt;table&gt;</code> for each of the 9 tables, plus <code>SELECT * LIMIT 5</code> for sampling.</li>
+      <li>Hand-author (or LLM-generate once, then review) a plain-English description per table and column — the single highest-value step for query accuracy, worth doing by hand at 9 tables.</li>
+      <li>Chunk <strong>per table</strong>, not per column — one embeddable document per table, since questions usually need "all context about table X."</li>
+      <li>Embed each document (e.g. OpenAI <code>text-embedding-3-small</code>) into a local vector store — <code>chromadb</code> in embedded mode is enough at this scale, and teaches you the real interface without running a server.</li>
+      <li>Persist the index to disk so FastAPI loads it at startup instead of rebuilding per request.</li>
+    </ol>
+    <p>Output: a <code>metadata_index/</code> folder (Chroma persistence dir) plus the raw JSON descriptions — keep the JSON, you'll read it directly when debugging bad SQL.</p>
+
+    <h3>3.3 &nbsp;FastAPI backend — the agent loop</h3>
+    <p>One endpoint, <code>POST /chat</code>. On each call:</p>
+    <ol>
+      <li><strong>Retrieve</strong> — embed the question, similarity-search the metadata index, pull the top 3–5 most relevant table documents.</li>
+      <li><strong>Generate SQL</strong> — call the LLM with only the retrieved schemas (not all 9 — that's the point of retrieval) and the question. Ask for SQL only.</li>
+      <li><strong>Guardrail before running</strong> — reject anything that isn't a single <code>SELECT</code>, enforce a <code>LIMIT</code>, whitelist table names, set a timeout.</li>
+      <li><strong>Execute</strong> — run via the connector/API, catch errors, and on a SQL error feed it back to the LLM for one or two repair attempts.</li>
+      <li><strong>Summarize</strong> — call the LLM again with the question and result rows (cap rows fed back, e.g. 50) for a natural-language answer.</li>
+      <li><strong>Return</strong> — JSON with the answer, plus the generated SQL and retrieved table names, so the UI can show "how I got this answer."</li>
+    </ol>
+    <p>Keep the agent stateless per request at first — pass full chat history from the frontend rather than server-side session storage. Simpler to reason about, and a fine production pattern too for v1.</p>
+
+    <h3>3.4 &nbsp;React frontend</h3>
+    <p>One chat window: message list + input box. POST the running history to <code>/chat</code> on submit, render the answer, optionally render the generated SQL in a collapsible block — useful while building, and trust-building for real users later. No auth, no persistence, no token streaming for v1; add streaming only once the basic request/response loop works end to end.</p>
+  </section>
+
+  <section id="s4">
+    <h2><span class="num">04</span>Build order</h2>
+    <p>Follow this sequence, not the architecture diagram top-down. Resist building frontend and backend in parallel — most of your early time goes into prompt/SQL quality, which is far faster to iterate on from a terminal script than through a browser.</p>
+    <ul class="build-order">
+      <li><strong>Databricks connectivity smoke test.</strong> A standalone script that connects and runs <code>SELECT * FROM wanderbricks.bookings LIMIT 5</code>. Don't touch AI or FastAPI until this works.</li>
+      <li><strong>Manual schema description pass.</strong> Hand-write the JSON descriptions for all 9 tables. Data entry, not coding — but it determines whether your SQL generation is any good.</li>
+      <li><strong>Ingestion script.</strong> Embed the JSON, write to a local Chroma store. Verify by embedding a test question ("which host had the most bookings?") and confirming the top 3 retrieved tables are <code>bookings</code>, <code>hosts</code>, <code>properties</code> — not <code>clickstream</code>.</li>
+      <li><strong>NL→SQL script, no FastAPI yet.</strong> Hardcode a question, retrieve context, call the LLM, print the SQL. Iterate on the system prompt here — most debugging time goes here.</li>
+      <li><strong>Add execution + guardrails</strong> to the same script. Run the generated SQL, print results.</li>
+      <li><strong>Add the summarization call.</strong> Full pipeline now works end-to-end from a terminal.</li>
+      <li><strong>Wrap it in FastAPI.</strong> Move the working script logic into <code>/chat</code>. Test with curl/Postman before touching React.</li>
+      <li><strong>Build the React chat UI</strong> against the working API.</li>
+      <li><strong>Add the error-retry loop, request logging, and the "show me the SQL" UI toggle.</strong></li>
+    </ul>
+  </section>
+
+  <section id="s5">
+    <h2><span class="num">05</span>Prompting notes specific to this project</h2>
+    <p>The NL→SQL system prompt should include: the retrieved table schemas (name, columns, types, join keys, sample values), the target dialect — Databricks SQL / Spark SQL has quirks vs. standard SQL, e.g. date functions — and an explicit instruction to use only the provided tables and columns.</p>
+    <p>Ask for SQL in a fenced block with a fixed tag (<code>```sql</code>) so parsing it out is a simple regex, not free-text parsing. For the summarization call, cap the number of result rows fed back (e.g. first 50) rather than dumping an unbounded result set into the prompt.</p>
+  </section>
+
+  <section id="s6">
+    <h2><span class="num">06</span>Minimum guardrails checklist</h2>
+    <p>Don't skip these for a "just learning" project — the LLM is writing SQL that actually executes.</p>
+    <ul class="checklist">
+      <li>Read-only DB credential, enforced at the Unity Catalog permission level, not just in Python.</li>
+      <li>Reject non-SELECT statements before execution.</li>
+      <li>Reject multiple statements / statement chaining.</li>
+      <li>Enforce a row <code>LIMIT</code>.</li>
+      <li>Enforce a query timeout.</li>
+      <li>Table/column whitelist check against the known 9 tables.</li>
+      <li>Log every generated SQL statement with the question that produced it — invaluable for debugging, and later for an eval set.</li>
+    </ul>
+  </section>
+
+  <section id="s7">
+    <h2><span class="num">07</span>Suggested tech stack</h2>
+    <p>Optimized for learning the concepts, not the tool.</p>
+    <table>
+      <tr><th>Layer</th><th>Choice</th><th>Why</th></tr>
+      <tr><td>Vector store</td><td>ChromaDB, local/embedded</td><td>Zero infra, real API, easy to inspect</td></tr>
+      <tr><td>Embeddings</td><td>OpenAI <code>text-embedding-3-small</code>, or any provider you already have a key for</td><td>Don't multi-provider this yet</td></tr>
+      <tr><td>LLM</td><td>Whatever you already have API access to</td><td>The pattern matters more than the model</td></tr>
+      <tr><td>Databricks access</td><td><code>databricks-sql-connector</code> first, then swap to raw Statement Execution REST calls</td><td>Connector gets you moving; REST teaches the underlying protocol</td></tr>
+      <tr><td>Backend</td><td>FastAPI + Pydantic models</td><td>Already your choice</td></tr>
+      <tr><td>Frontend</td><td>React, <code>useState</code> only</td><td>ChatWindow → MessageList + InputBar is enough</td></tr>
+    </table>
+  </section>
+
+  <section id="s8">
+    <h2><span class="num">08</span>Path to production</h2>
+    <p>Read after v1 works — don't build this now. Roughly in order of value:</p>
+    <ol>
+      <li>Evaluation set — 15–20 question/expected-SQL pairs to catch regressions when prompts change.</li>
+      <li>Semantic layer instead of raw schema dump — curated views reduce join-guessing surface.</li>
+      <li>Streaming responses in FastAPI (SSE) and React.</li>
+      <li>Session/conversation persistence (Postgres/Redis) instead of client-passed history.</li>
+      <li>Auth in front of both the React app and FastAPI.</li>
+      <li>Swap local Chroma for a managed vector store if the metadata catalog grows past what fits in memory.</li>
+      <li>Observability — log latency and token cost per stage: retrieval, SQL-gen, execution, summarization.</li>
+    </ol>
+  </section>
+
+  <section id="s9">
+    <h2><span class="num">09</span>What to hand to a coding agent next</h2>
+    <p>Once you're comfortable with this plan, hand it off as separate, sequential tickets matching Section 04's build order — e.g. "Ticket 1: Databricks connectivity smoke test script" — rather than one "build the whole thing" prompt. Easier for you to review and learn from each piece, and easier for the agent to get right.</p>
+  </section>
+
+  <footer>wanderbricks-agent-plan · draft v1</footer>
+</div>
+</body>
+</html>
